@@ -1,0 +1,19 @@
+# Apps Script local files
+.clasp.json
+.clasprc.json
+.clasp-oauth.json
+clasp-oauth.json
+client_secret*.json
+
+# Local-only Apps Script files — pushed via clasp, never committed to git
+# (they contain the Drive folder ID, kept out of the repo on purpose).
+src/Local.js
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Node (if we ever add tooling)
+node_modules/
+package-lock.json
