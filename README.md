@@ -8,6 +8,8 @@ There is no server to maintain, no database, no CI/CD pipeline, no third-party h
 
 For the architecture and design rationale see [DESIGN.md](./DESIGN.md). This README is the practical "how do I get this running on my own Drive" guide.
 
+> 🤖 **Using an AI coding assistant** (Claude Code, Cursor, GitHub Copilot Workspace, etc.)? Hand it [SETUP_WITH_CLAUDE.md](./SETUP_WITH_CLAUDE.md) instead — that file is written as a playbook the assistant can execute against your environment, walking you through every step interactively and running the commands for you where it can.
+
 ## What you get
 
 - A single URL that lists every book in your Drive folder, with cover art, title, author, and a short description.
@@ -322,11 +324,13 @@ src/
 ├── Index.js           HTML index page rendering
 └── Local.js           NOT in git. Your local-only setupOnce() that hardcodes the folder ID.
 .gitignore             Excludes .clasp.json, clasp-oauth.json, src/Local.js
-CLAUDE.md              Project guide for Claude (LLM) assistance; useful for humans too
+CLAUDE.md              Project conventions for AI assistants working on the codebase
 DESIGN.md              Architecture, design rationale, decision log
+LICENSE                MIT licence
 README.md              This file
+SETUP_WITH_CLAUDE.md   Setup playbook for AI assistants to walk a new user through install
 ```
 
 ## License
 
-This project is provided as-is for personal use. Add whatever license you prefer if you fork it.
+MIT — see [LICENSE](./LICENSE).
