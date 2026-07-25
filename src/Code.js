@@ -101,12 +101,23 @@ function runDiagnostics() {
     const chapters = listChapters(f.id);
     const cover = findCover(f.id);
     const meta = findMetadataJson(f.id);
+    const oversize = chapters.filter(function (c) { return c.size > MAX_SAFE_BYTES; });
     Logger.log(
       '  - ' + f.name +
       ' | chapters: ' + chapters.length +
       ' | cover: ' + (cover ? cover.name + ' (' + cover.size + ' bytes)' : 'NONE') +
       ' | metadata.json: ' + (meta ? 'present' : 'absent (will be auto-fetched)')
     );
+    if (chapters.length === 0) {
+      Logger.log('      WARNING: no playable audio found. Podcast clients will');
+      Logger.log('      report "no episodes". Supported extensions: ' +
+                 Object.keys(AUDIO_EXT_MIME).join(', '));
+    }
+    oversize.forEach(function (c) {
+      Logger.log('      WARNING: "' + c.name + '" is ' +
+                 Math.round(c.size / 1048576) + 'MB (>100MB). Drive will serve a ' +
+                 'virus-scan interstitial instead of audio. Split this file.');
+    });
   });
   Logger.log('Diagnostics complete.');
 }

@@ -33,6 +33,9 @@ function cleanFolderNameForSearch(name) {
   let s = name || '';
   s = s.replace(/\([^)]*\)/g, ' ');
   s = s.replace(/\[[^\]]*\]/g, ' ');
+  // Bare Audible ASIN (B0 + 8 alphanumerics), e.g. "This Way Up B08XYZ1234".
+  // Bracketed ones are already gone; this catches the unbracketed habit.
+  s = s.replace(/\bB0[A-Z0-9]{8}\b/gi, ' ');
   s = s.replace(/\b(19|20)\d{2}\b/g, ' ');
   s = s.replace(/\b(unabridged|abridged|audiobook|audio\s*book)\b/gi, ' ');
   s = s.replace(/[_\-]+/g, ' ');

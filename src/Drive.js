@@ -4,7 +4,29 @@
 // and cover images). NEVER on folders. A leaked file URL exposes one file;
 // a leaked folder URL would expose the whole library by enumeration.
 
-const AUDIO_MIME = ['audio/mpeg', 'audio/mp3'];
+// Extension -> RSS enclosure MIME type. We key off the extension rather than
+// Drive's reported MIME because Drive is unreliable for anything that isn't
+// MP3: an .m4b comes back as audio/x-m4b, audio/mp4, video/mp4 or plain
+// application/octet-stream depending on how it was uploaded.
+const AUDIO_EXT_MIME = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  m4b: 'audio/mp4',
+  mp4: 'audio/mp4',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg'
+};
+
+// Drive serves a virus-scan HTML interstitial instead of the file above this
+// size, which podcast clients cannot follow. Surfaced by runDiagnostics().
+const MAX_SAFE_BYTES = 100 * 1024 * 1024;
+
+function audioMimeFor(filename) {
+  const m = filename.match(/\.([a-z0-9]+)$/i);
+  if (!m) return null;
+  return AUDIO_EXT_MIME[m[1].toLowerCase()] || null;
+}
 
 function listBookFolders(rootFolderId) {
   const root = DriveApp.getFolderById(rootFolderId);
@@ -24,10 +46,10 @@ function listChapters(bookFolderId) {
   const iter = folder.getFiles();
   while (iter.hasNext()) {
     const f = iter.next();
-    const mt = f.getMimeType();
-    const isAudio = AUDIO_MIME.indexOf(mt) !== -1 || /\.mp3$/i.test(f.getName());
-    if (!isAudio) continue;
-    out.push({ id: f.getId(), name: f.getName(), size: f.getSize() });
+    const name = f.getName();
+    const mime = audioMimeFor(name);
+    if (!mime) continue;
+    out.push({ id: f.getId(), name: name, size: f.getSize(), mime: mime });
   }
   out.sort(function (a, b) { return a.name.localeCompare(b.name); });
   return out;
@@ -102,6 +124,14 @@ function ensureChaptersShared(folder, chapters) {
   if (lastSharedAt && folderUpdated < lastSharedAt) {
     return; // folder unchanged since last full share — trust it
   }
+
+  // Never record a timestamp for a zero-chapter share. An empty list means we
+  // verified nothing, not that everything is fine — and stamping it here would
+  // permanently suppress sharing for a folder whose files we later learn to
+  // recognise. That is exactly what happened when .m4a support was added: the
+  // MP3-only build stamped these folders as "fully shared" while skipping
+  // every file in them, and the chapters then served a Drive sign-in page.
+  if (!chapters.length) return;
 
   chapters.forEach(function (c) { ensureAnyoneWithLink(c.id); });
   props.setProperty(key, String(Date.now()));

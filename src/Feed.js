@@ -50,7 +50,7 @@ function renderFeed(book, chapters, metadata, cover, deploymentUrl) {
     const enclosure = XmlService.createElement('enclosure')
       .setAttribute('url', audioUrl(chapter.id))
       .setAttribute('length', String(chapter.size || 0))
-      .setAttribute('type', 'audio/mpeg');
+      .setAttribute('type', chapter.mime || 'audio/mpeg');
     item.addContent(enclosure);
 
     const guid = XmlService.createElement('guid').setText(chapter.id);
@@ -76,7 +76,7 @@ function formatRfc822(date) {
 // chapter name. Strip that so the podcast app shows just "01 - Opening
 // Credits" rather than "Ramble Book_ Musings on... [0008293368] - 01 - ...".
 function cleanChapterTitle(filename, bookFolderName) {
-  let s = filename.replace(/\.mp3$/i, '');
+  let s = filename.replace(/\.(mp3|m4a|m4b|mp4|aac|ogg|opus)$/i, '');
   // 1. If there's a "...] - " section, take what's after the last "] - ".
   const m = s.match(/\]\s*-\s*(.+)$/);
   if (m) return m[1].trim();

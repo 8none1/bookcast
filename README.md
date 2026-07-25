@@ -65,8 +65,9 @@ Audiobooks/                            ← the "root folder"
 Rules:
 
 - **Top-level subfolders are books.** The folder name becomes the default book title.
-- **MP3 files inside a book folder are chapters.** They're ordered by filename — prefix with `01`, `02`, ... to guarantee the order. A stray `1.mp3` next to `10.mp3` will mis-sort lexically.
+- **Audio files inside a book folder are chapters.** Recognised extensions: `.mp3`, `.m4a`, `.m4b`, `.mp4`, `.aac`, `.ogg`, `.opus`. They're ordered by filename — prefix with `01`, `02`, ... to guarantee the order. A stray `1.mp3` next to `10.mp3` will mis-sort lexically.
 - **Each chapter should be under ~100 MB.** Above that, Drive serves a virus-scan interstitial that breaks podcast clients. Split larger files before upload.
+- **A single whole-book `.m4b` is not a good fit.** It's one episode with no chapter navigation, and it will almost certainly be over the 100 MB line. Run it through [`tools/split_m4b.py`](#splitting-an-m4b-audiobook) first.
 - **Cover image:** drop any JPG (or PNG) into the folder. Bookcast picks the largest image file (preferring JPEG over PNG) and serves it as the cover at 1400×1400 — the Apple-Podcasts-recommended size. The cover should ideally be a square ≥1400×1400.
 - **`metadata.json`** is optional. If absent, Bookcast searches Open Library by the folder name on the first request, writes the resulting JSON into the book folder, and uses it from then on. If you don't like what Open Library returned, edit the file by hand.
 
@@ -82,6 +83,20 @@ Rules:
   "language": "en"
 }
 ```
+
+### Splitting an .m4b audiobook
+
+Most audiobook downloads are a single `.m4b`: one MP4 container holding the whole book plus chapter markers. Bookcast's model is one file per episode, so an unsplit `.m4b` gives you a single multi-hour episode that's too big for Drive to serve. `tools/split_m4b.py` turns it into a ready-to-upload book folder:
+
+```bash
+tools/split_m4b.py "This Way Up.m4b" -o ~/audiobooks
+```
+
+It reads the embedded chapter markers, stream-copies each chapter into its own `.m4a` (no re-encode, so it's fast and lossless), zero-pads the filenames so they sort correctly, extracts the embedded cover art, and writes a `metadata.json` from the container tags so Bookcast skips the Open Library lookup. Pass `--mp3` if you'd rather transcode for maximum client compatibility, and `--bitrate` to control the result.
+
+The book folder is named from the container's own title tag, plus the Audible ASIN in square brackets where the file has one — downloaded filenames are frequently mangled (duplicated subtitles, colons replaced with underscores) while the embedded tags are what the publisher actually wrote. Use `--name` to override. Bookcast's Open Library fallback strips bracketed text, so the ASIN never interferes with a metadata lookup.
+
+Requires `ffmpeg` and `ffprobe` on your PATH. If the file has no chapter markers, the script tells you how to split it into fixed-length parts instead. Upload the resulting folder into your Drive root, then run `flushCache()`.
 
 ## Setup
 
@@ -254,6 +269,20 @@ You can absorb this cost up front by running `prewarmAll` from the editor: funct
 - Bookmark the index URL or use Safari's "Add to Home Screen" so it's one tap away from your phone's home screen.
 - Scan the QR code at the top of the page to set up additional devices without typing the URL.
 
+## Updating the code later
+
+**`clasp push` does not update your live URL.** A web app deployment is pinned to the code version that existed when it was created; pushing only updates the editor's HEAD. Symptom: `runDiagnostics()` in the editor behaves correctly (it runs HEAD) while `/exec` keeps serving the old behaviour. Redeploy over the *same* deployment ID:
+
+```bash
+clasp push
+clasp deployments                                     # find the ID — it's the AKfycb... in your URL
+clasp deploy -i <deploymentId> --description "v0.2"   # same URL, new code
+```
+
+Redeploying to the same ID keeps the URL identical, so subscribers are unaffected. A bare `clasp deploy` with no `-i` creates a *second* deployment on a *new* URL and leaves the old one live and stale — almost never what you want.
+
+Then run `flushCache()`, or the previous response stays cached for up to 10 minutes and it'll look like the redeploy failed.
+
 ## Adding books later
 
 1. Create a new subfolder in your Drive root folder.
@@ -265,7 +294,9 @@ You can absorb this cost up front by running `prewarmAll` from the editor: funct
 
 ## Editor utilities
 
-These functions live in `Code.gs` and `Drive.gs` and are intended to be run from the Apps Script editor:
+These functions live in `Code.gs` and `Drive.gs` and are intended to be run from the Apps Script editor.
+
+Two editor quirks worth knowing before you go looking for them: the IDE does **not** reload after a `clasp push`, so refresh the browser tab first or you'll be looking at stale files; and the **Run dropdown only lists functions from the file currently open** in the editor, so select `Drive.gs` in the file list before hunting for `flushSharedState()`.
 
 | Function | What it does |
 |---|---|
@@ -292,6 +323,10 @@ These functions live in `Code.gs` and `Drive.gs` and are intended to be run from
 …then `clasp push --force` and `clasp redeploy <deploymentId> --description "fix webapp config"`.
 
 **Feed URLs contain `/a/<domain>/macros/...`** — Workspace-domain accounts get a domain-prefixed URL from `ScriptApp.getService().getUrl()`, which requires the visitor to be authenticated to the Workspace domain. Bookcast strips it; if you see it in your feed XML, make sure you're running the current `Code.gs` (search for `getDeploymentUrl` and confirm the `.replace(/\/a\/[^/]+\/macros\//, ...)` is there).
+
+**The book shows on the index page but my podcast app says "no episodes"** — the folder contains no file Bookcast recognises as audio. Run `runDiagnostics()` in the Apps Script editor; it logs a chapter count per book and warns when a folder has none. The usual cause is a single `.m4b` (see [Splitting an .m4b audiobook](#splitting-an-m4b-audiobook)) or an archive that was never unpacked. Remember to `flushCache()` after fixing it, otherwise you'll keep getting the cached empty feed for up to 10 minutes.
+
+**Episodes appear in the feed but won't download / play** — fetch one of the enclosure URLs with `curl -sSL '<url>' | file -`. If it says `HTML document` rather than audio, the chapter files aren't link-shared and Drive is serving a sign-in page. Run `flushSharedState()` then `prewarmAll()` from the editor. Bookcast tracks a per-folder "fully shared at" timestamp to avoid re-checking every file on every request, and anything that unshares files behind its back (or any older build that didn't recognise those files as audio) leaves that timestamp lying.
 
 **Subscribe button on iPhone opens Apple Podcasts even though I use Overcast** — `podcast://` is iOS's default scheme for Apple Podcasts. Use the orange **Open in Overcast** button instead, which uses Overcast's `overcast://x-callback-url/add?url=...` scheme.
 
@@ -323,6 +358,8 @@ src/
 ├── Feed.js            RSS XML rendering via XmlService
 ├── Index.js           HTML index page rendering
 └── Local.js           NOT in git. Your local-only setupOnce() that hardcodes the folder ID.
+tools/
+└── split_m4b.py       Split a single .m4b into a per-chapter book folder (needs ffmpeg)
 .gitignore             Excludes .clasp.json, clasp-oauth.json, src/Local.js
 CLAUDE.md              Project conventions for AI assistants working on the codebase
 DESIGN.md              Architecture, design rationale, decision log
